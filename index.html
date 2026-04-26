@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FinControl ERP - Admin & Gestão</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; overflow: hidden; }
+        .sidebar-active { background-color: #3b82f6 !important; color: white !important; }
+        input, select, textarea { border: 1px solid #e2e8f0; padding: 0.65rem; border-radius: 0.5rem; outline: none; width: 100%; transition: 0.3s; background: white; font-size: 14px; }
+        input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
+        .admin-only { display: none; }
+        body.is-admin .admin-only { display: block; }
+        body.is-admin .admin-inline { display: inline-block; }
+        @media (max-width: 768px) {
+            .sidebar { position: fixed; z-index: 50; transform: translateX(-100%); transition: 0.3s; height: 100%; }
+            .sidebar.open { transform: translateX(0); }
+        }
+    </style>
+</head>
+<body class="flex h-screen overflow-hidden">
+
+    <div id="auth-container" class="fixed inset-0 z-[100] bg-slate-900 flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl p-8">
+            <div class="text-center mb-6">
+                <div class="bg-blue-600 w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-lock text-white text-xl"></i>
+                </div>
+                <h1 id="auth-title" class="text-2xl font-bold">FinControl Access</h1>
+            </div>
+            <form onsubmit="handleAuth(event)" class="space-y-4">
+                <div id="field-name" class="hidden"><input type="text" id="auth-nome" placeholder="Nome Completo"></div>
+                <input type="email" id="auth-email" required placeholder="E-mail de acesso">
+                <input type="password" id="auth-pass" required placeholder="Senha">
+                <button type="submit" id="auth-btn" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700">Entrar no Sistema</button>
+            </form>
+            <button onclick="toggleAuthMode()" id="auth-toggle-text" class="w-full mt-6 text-sm text-blue-600 font-medium">Não tem conta? Cadastre-se</button>
+        </div>
+    </div>
+
+    <aside id="sidebar" class="sidebar w-64 bg-slate-900 text-slate-300 flex flex-col shadow-xl shrink-0">
+        <div class="p-6 text-xl font-extrabold text-white border-b border-slate-800 flex items-center gap-3">
+            <i class="fas fa-terminal text-blue-500"></i> ERP Control
+        </div>
+        <nav class="flex-1 p-4 space-y-1 overflow-y-auto">
+            <button onclick="showSection('dashboard')" class="nav-btn w-full flex items-center p-3 rounded-lg sidebar-active" id="btn-dashboard"><i class="fas fa-home mr-3"></i> Dashboard</button>
+            <button onclick="showSection('clientes')" class="nav-btn w-full flex items-center p-3 rounded-lg" id="btn-clientes"><i class="fas fa-users mr-3"></i> Clientes</button>
+            <button onclick="showSection('os')" class="nav-btn w-full flex items-center p-3 rounded-lg" id="btn-os"><i class="fas fa-tools mr-3"></i> Ordens de Serviço</button>
+            <button onclick="showSection('vendas')" class="nav-btn w-full flex items-center p-3 rounded-lg" id="btn-vendas"><i class="fas fa-shopping-cart mr-3"></i> Vendas</button>
+            <button onclick="showSection('produtos')" class="nav-btn w-full flex items-center p-3 rounded-lg" id="btn-produtos"><i class="fas fa-boxes mr-3"></i> Produtos</button>
+            <button onclick="showSection('financeiro')" class="nav-btn w-full flex items-center p-3 rounded-lg" id="btn-financeiro"><i class="fas fa-wallet mr-3"></i> Financeiro</button>
+            <div class="admin-only pt-4 border-t border-slate-800">
+                <p class="px-3 text-[10px] font-bold text-slate-500 uppercase mb-2">Administração</p>
+                <button onclick="showSection('usuarios')" class="nav-btn w-full flex items-center p-3 rounded-lg" id="btn-usuarios"><i class="fas fa-user-shield mr-3"></i> Gestão de Equipe</button>
+                <button onclick="showSection('config')" class="nav-btn w-full flex items-center p-3 rounded-lg" id="btn-config"><i class="fas fa-cogs mr-3"></i> Configurações</button>
+            </div>
+        </nav>
+        <div class="p-4 border-t border-slate-800">
+            <div id="user-badge" class="mb-3 px-2 py-1 bg-slate-800 rounded text-[10px] font-bold text-blue-400">LOGADO COMO...</div>
+            <button onclick="logout()" class="w-full text-red-500 font-bold text-sm">Sair do ERP</button>
+        </div>
+    </aside>
+
+    <main class="flex-1 overflow-y-auto p-4 md:p-8">
+        <header class="flex justify-between items-center mb-8">
+            <h1 id="page-title" class="text-2xl font-black text-slate-800">Dashboard</h1>
+            <button onclick="document.getElementById('sidebar').classList.toggle('open')" class="md:hidden p-2 bg-white rounded-lg shadow-sm"><i class="fas fa-bars"></i></button>
+        </header>
+
+        <section id="sec-dashboard" class="space-y-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="bg-white p-6 rounded-2xl border shadow-sm"><p class="text-slate-400 text-xs font-bold uppercase">Caixa</p><h2 id="dash-saldo" class="text-2xl font-black text-green-600">R$ 0,00</h2></div>
+                <div class="bg-white p-6 rounded-2xl border shadow-sm"><p class="text-slate-400 text-xs font-bold uppercase">Clientes</p><h2 id="dash-clientes" class="text-2xl font-black text-blue-600">0</h2></div>
+                <div class="bg-white p-6 rounded-2xl border shadow-sm"><p class="text-slate-400 text-xs font-bold uppercase">O.S. Ativas</p><h2 id="dash-os" class="text-2xl font-black text-orange-500">0</h2></div>
+                <div class="bg-white p-6 rounded-2xl border shadow-sm"><p class="text-slate-400 text-xs font-bold uppercase">Vendas</p><h2 id="dash-vendas" class="text-2xl font-black text-slate-800">0</h2></div>
+            </div>
+            <div class="bg-white p-6 rounded-2xl border shadow-sm"><canvas id="mainChart" height="100"></canvas></div>
+        </section>
+
+        <section id="sec-usuarios" class="hidden space-y-6">
+            <div class="bg-white rounded-2xl border shadow-sm overflow-hidden">
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-slate-50 border-b">
+                        <tr>
+                            <th class="p-4">Usuário</th>
+                            <th class="p-4">E-mail</th>
+                            <th class="p-4">Nível</th>
+                            <th class="p-4 text-center">Ação</th>
+                        </tr>
+                    </thead>
+                    <tbody id="lista-usuarios" class="divide-y"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="sec-clientes" class="hidden space-y-6">
+            <div class="bg-white p-6 rounded-2xl border shadow-sm">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <input type="text" id="cli-nome" placeholder="Nome Completo">
+                    <input type="text" id="cli-tel" placeholder="Telefone">
+                    <input type="text" id="cli-cpf" placeholder="CPF">
+                    <input type="email" id="cli-email" placeholder="E-mail">
+                    <input type="text" id="cli-end" placeholder="Endereço" class="md:col-span-2">
+                    <button onclick="registrarCliente()" class="bg-blue-600 text-white font-bold rounded-lg py-3">Cadastrar Cliente</button>
+                </div>
+            </div>
+            <div class="bg-white rounded-2xl border shadow-sm overflow-hidden"><table class="w-full text-left text-sm"><tbody id="lista-clientes" class="divide-y"></tbody></table></div>
+        </section>
+
+        <section id="sec-vendas" class="hidden space-y-6">
+            <div class="bg-white p-6 rounded-2xl border shadow-sm">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <select id="venda-cliente-select"><option value="">Cliente</option></select>
+                    <select id="venda-produto-select"><option value="">Produto</option></select>
+                    <select id="venda-pagamento">
+                        <option value="PIX">PIX</option>
+                        <option value="Dinheiro">Dinheiro</option>
+                        <option value="Cartão">Cartão</option>
+                    </select>
+                    <button onclick="registrarVenda()" class="bg-emerald-600 text-white font-bold rounded-lg py-3">Finalizar Venda</button>
+                </div>
+            </div>
+            <div class="bg-white rounded-2xl border shadow-sm overflow-hidden"><table class="w-full text-left text-sm"><tbody id="lista-vendas" class="divide-y"></tbody></table></div>
+        </section>
+
+        <section id="sec-os" class="hidden space-y-6">
+            <div class="bg-white p-6 rounded-2xl border shadow-sm">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <select id="os-cliente-select"><option value="">Selecionar Cliente</option></select>
+                    <input type="text" id="os-tecnico" placeholder="Técnico">
+                    <input type="text" id="os-servico" placeholder="Serviço">
+                    <select id="os-status">
+                        <option value="Aguardando">Aguardando</option>
+                        <option value="Pendente de Pagamento">Pendente de Pagamento</option>
+                        <option value="Pago">Pago</option>
+                        <option value="Concluído">Concluído</option>
+                    </select>
+                    <button onclick="registrarOS()" class="bg-blue-600 text-white font-bold py-3 rounded-lg">Abrir O.S.</button>
+                </div>
+            </div>
+            <div class="bg-white rounded-2xl border shadow-sm overflow-hidden"><table class="w-full text-left text-sm"><tbody id="lista-os" class="divide-y"></tbody></table></div>
+        </section>
+
+        <section id="sec-financeiro" class="hidden space-y-6">
+            <div class="bg-slate-900 p-10 rounded-3xl text-center text-white"><h1 id="fin-total" class="text-4xl font-black">R$ 0,00</h1></div>
+            <div class="bg-white rounded-2xl border shadow-sm overflow-hidden"><table class="w-full text-left text-sm"><tbody id="lista-financeiro" class="divide-y"></tbody></table></div>
+        </section>
+
+        <section id="sec-produtos" class="hidden space-y-6">
+            <div class="bg-white p-6 rounded-2xl border shadow-sm">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <input type="text" id="prod-nome" placeholder="Produto">
+                    <input type="number" id="prod-preco" placeholder="R$">
+                    <button onclick="adicionarProduto()" class="bg-slate-800 text-white font-bold rounded-lg">Salvar Item</button>
+                </div>
+            </div>
+            <div class="bg-white rounded-2xl border shadow-sm overflow-hidden"><table class="w-full text-left text-sm"><tbody id="lista-produtos" class="divide-y"></tbody></table></div>
+        </section>
+
+        <section id="sec-config" class="hidden space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-white p-8 rounded-2xl border shadow-sm"><h4 class="font-bold mb-4">Exportar Backup</h4><button onclick="downloadBackup()" class="w-full bg-slate-900 text-white py-3 rounded-xl font-bold">Salvar .JSON</button></div>
+                <div class="bg-white p-8 rounded-2xl border shadow-sm"><h4 class="font-bold mb-4 text-red-600">Resetar Sistema</h4><button onclick="resetSystem()" class="w-full bg-red-100 text-red-600 py-3 rounded-xl font-bold">LIMPAR TUDO</button></div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // --- DATA ENGINE ---
+        let db = JSON.parse(localStorage.getItem('fincontrol_v8')) || {
+            users: [], clientes: [], produtos: [], vendas: [], financeiro: [], os: []
+        };
+        let currentUser = JSON.parse(sessionStorage.getItem('erp_session')) || null;
+
+        const save = () => { localStorage.setItem('fincontrol_v8', JSON.stringify(db)); renderAll(); };
+
+        // --- AUTH & CONTROLE DE ACESSO ---
+        let authMode = 'login';
+        function toggleAuthMode() {
+            authMode = authMode === 'login' ? 'register' : 'login';
+            document.getElementById('auth-title').innerText = authMode === 'login' ? 'FinControl Access' : 'Nova Conta';
+            document.getElementById('field-name').classList.toggle('hidden');
+        }
+
+        function handleAuth(e) {
+            e.preventDefault();
+            const email = document.getElementById('auth-email').value;
+            const pass = document.getElementById('auth-pass').value;
+
+            if(authMode === 'register') {
+                const isAdmin = db.users.length === 0; // Primeiro usuário é Admin
+                db.users.push({ 
+                    id: Date.now(), 
+                    nome: document.getElementById('auth-nome').value, 
+                    email, 
+                    pass, 
+                    role: isAdmin ? 'admin' : 'user' 
+                });
+                save(); alert("Conta criada!"); toggleAuthMode();
+            } else {
+                const user = db.users.find(u => u.email === email && u.pass === pass);
+                if(user) {
+                    sessionStorage.setItem('erp_session', JSON.stringify(user));
+                    location.reload();
+                } else alert("E-mail ou senha incorretos.");
+            }
+        }
+
+        function logout() { sessionStorage.clear(); location.reload(); }
+
+        function checkPermissions() {
+            if(!currentUser) return;
+            if(currentUser.role === 'admin') {
+                document.body.classList.add('is-admin');
+                document.getElementById('user-badge').innerText = `MODO: ADMINISTRADOR`;
+            } else {
+                document.body.classList.remove('is-admin');
+                document.getElementById('user-badge').innerText = `MODO: OPERADOR`;
+            }
+        }
+
+        // --- GESTÃO DE USUÁRIOS (ADMIN) ---
+        function toggleUserRole(userId) {
+            if(currentUser.role !== 'admin') return;
+            const user = db.users.find(u => u.id === userId);
+            if(user) {
+                if(user.id === currentUser.id) return alert("Você não pode alterar seu próprio nível.");
+                user.role = user.role === 'admin' ? 'user' : 'admin';
+                save();
+            }
+        }
+
+        function deleteUser(userId) {
+            if(currentUser.role !== 'admin') return;
+            if(userId === currentUser.id) return alert("Você não pode se deletar.");
+            if(confirm("Deseja remover este usuário?")) {
+                db.users = db.users.filter(u => u.id !== userId);
+                save();
+            }
+        }
+
+        // --- CORE FUNCTIONS ---
+        function registrarCliente() {
+            db.clientes.push({ id: Date.now(), nome: document.getElementById('cli-nome').value, tel: document.getElementById('cli-tel').value, cpf: document.getElementById('cli-cpf').value });
+            save(); document.querySelectorAll('#sec-clientes input').forEach(i => i.value = '');
+        }
+
+        function registrarVenda() {
+            const prod = db.produtos[document.getElementById('venda-produto-select').value];
+            const venda = { data: new Date().toLocaleString(), cliente: document.getElementById('venda-cliente-select').value, produto: prod.nome, valor: prod.preco, pag: document.getElementById('venda-pagamento').value };
+            db.vendas.push(venda);
+            db.financeiro.push({ data: venda.data, desc: `${venda.cliente} | ${prod.nome}`, valor: prod.preco, pag: venda.pag });
+            save();
+        }
+
+        function registrarOS() {
+            db.os.push({ id: Math.floor(1000 + Math.random()*9000), data: new Date().toLocaleString(), cliente: document.getElementById('os-cliente-select').value, tecnico: document.getElementById('os-tecnico').value, servico: document.getElementById('os-servico').value, status: document.getElementById('os-status').value });
+            save();
+        }
+
+        function adicionarProduto() {
+            db.produtos.push({ nome: document.getElementById('prod-nome').value, preco: parseFloat(document.getElementById('prod-preco').value) });
+            save();
+        }
+
+        // --- RENDER ---
+        function renderAll() {
+            checkPermissions();
+            const isAdmin = currentUser && currentUser.role === 'admin';
+
+            // Dashboard
+            const saldo = db.financeiro.reduce((a, b) => a + b.valor, 0);
+            document.getElementById('dash-saldo').innerText = `R$ ${saldo.toFixed(2)}`;
+            document.getElementById('dash-clientes').innerText = db.clientes.length;
+            document.getElementById('dash-os').innerText = db.os.filter(o => o.status !== 'Concluído').length;
+            document.getElementById('dash-vendas').innerText = db.vendas.length;
+            document.getElementById('fin-total').innerText = `R$ ${saldo.toFixed(2)}`;
+
+            // Selects
+            const cliOpt = '<option value="">Cliente...</option>' + db.clientes.map(c => `<option value="${c.nome}">${c.nome}</option>`).join('');
+            document.getElementById('venda-cliente-select').innerHTML = cliOpt;
+            document.getElementById('os-cliente-select').innerHTML = cliOpt;
+            document.getElementById('venda-produto-select').innerHTML = '<option value="">Item...</option>' + db.produtos.map((p,i) => `<option value="${i}">${p.nome} (R$ ${p.preco})</option>`).join('');
+
+            // Tabelas
+            document.getElementById('lista-usuarios').innerHTML = db.users.map(u => `
+                <tr>
+                    <td class="p-4 font-bold">${u.nome} ${u.id === currentUser.id ? '(Você)' : ''}</td>
+                    <td class="p-4">${u.email}</td>
+                    <td class="p-4"><span class="px-2 py-1 rounded text-[10px] font-bold ${u.role === 'admin' ? 'bg-purple-100 text-purple-600' : 'bg-slate-100 text-slate-600'}">${u.role.toUpperCase()}</span></td>
+                    <td class="p-4 text-center">
+                        <button onclick="toggleUserRole(${u.id})" class="text-blue-500 mr-3 text-xs">Alternar Nível</button>
+                        <button onclick="deleteUser(${u.id})" class="text-red-500 text-xs">Deletar</button>
+                    </td>
+                </tr>
+            `).join('');
+
+            document.getElementById('lista-clientes').innerHTML = db.clientes.map(c => `<tr><td class="p-4 font-bold">${c.nome}</td><td class="p-4">${c.tel}</td><td class="p-4">${isAdmin ? `<button onclick="db.clientes=db.clientes.filter(x=>x.id!==${c.id});save()" class="text-red-400">Excluir</button>` : '---'}</td></tr>`).join('');
+            
+            document.getElementById('lista-vendas').innerHTML = db.vendas.slice().reverse().map(v => `<tr><td class="p-4 text-xs">${v.data}</td><td class="p-4 font-bold">${v.cliente}</td><td class="p-4">${v.produto}</td><td class="p-4 font-black">R$ ${v.valor.toFixed(2)}</td></tr>`).join('');
+
+            document.getElementById('lista-produtos').innerHTML = db.produtos.map((p,i) => `<tr><td class="p-4 font-bold">${p.nome}</td><td class="p-4">R$ ${p.preco}</td><td class="p-4">${isAdmin ? `<button onclick="db.produtos.splice(${i},1);save()">❌</button>` : ''}</td></tr>`).join('');
+
+            document.getElementById('lista-os').innerHTML = db.os.slice().reverse().map(o => `<tr><td class="p-4 text-xs">${o.data}</td><td class="p-4 font-bold">${o.cliente}</td><td class="p-4 text-blue-600 font-bold">${o.status}</td><td class="p-4 text-center"><button onclick="exportOS(${o.id})"><i class="fas fa-file-pdf"></i></button></td></tr>`).join('');
+            
+            document.getElementById('lista-financeiro').innerHTML = db.financeiro.slice().reverse().map(f => `<tr><td class="p-4 text-xs">${f.data}</td><td class="p-4 font-bold">${f.desc}</td><td class="p-4 text-green-600 font-black text-right">R$ ${f.valor.toFixed(2)}</td></tr>`).join('');
+        }
+
+        // --- NAVIGATION ---
+        function showSection(id) {
+            document.querySelectorAll('main > section').forEach(s => s.classList.add('hidden'));
+            document.getElementById('sec-' + id).classList.remove('hidden');
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('sidebar-active'));
+            const btn = document.getElementById('btn-' + id);
+            if(btn) btn.classList.add('sidebar-active');
+            document.getElementById('page-title').innerText = id.toUpperCase();
+            document.getElementById('sidebar').classList.remove('open');
+        }
+
+        // --- OUTROS ---
+        function exportOS(id) { alert("Gerando PDF da O.S. #" + id); }
+        function downloadBackup() { const a = document.createElement('a'); a.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(db)); a.download = 'backup.json'; a.click(); }
+        function resetSystem() { if(confirm("CUIDADO: Isso apagará TODOS os dados. Continuar?")) { localStorage.removeItem('fincontrol_v8'); location.reload(); } }
+
+        // --- INIT ---
+        if(currentUser) {
+            document.getElementById('auth-container').classList.add('hidden');
+            renderAll();
+        }
+    </script>
+</body>
+</html>
