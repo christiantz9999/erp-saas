@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FinControl ERP - Mobile & Desktop</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        
+        :root { --sidebar-width: 260px; }
+        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; color: #1e293b; margin: 0; padding: 0; overflow: hidden; }
+
+        /* Sidebar Responsiva */
+        #sidebar {
+            width: var(--sidebar-width);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 100;
+        }
+
+        @media (max-width: 1024px) {
+            #sidebar {
+                position: fixed;
+                left: calc(-1 * var(--sidebar-width));
+                height: 100vh;
+            }
+            #sidebar.open { left: 0; }
+            .content-wrapper { margin-left: 0 !important; }
+        }
+
+        /* Utilidades de Layout */
+        .nav-btn-active { background-color: #2563eb !important; color: white !important; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2); }
+        .table-res { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 12px; }
+        
+        /* Modal Otimizado */
+        .modal-overlay { 
+            display: none; position: fixed; inset: 0; 
+            background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); 
+            z-index: 200; align-items: center; justify-content: center; padding: 15px;
+        }
+        .modal-overlay.active { display: flex; }
+
+        /* Esconder Scrollbar mas manter funcionalidade */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        input, select { height: 48px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 16px !important; }
+        .admin-only { display: none; }
+        body.is-admin .admin-only { display: block; }
+    </style>
+</head>
+<body class="flex h-screen">
+
+    <div id="overlay" onclick="toggleSidebar()" class="fixed inset-0 bg-black/50 z-[90] hidden lg:hidden"></div>
+
+    <div id="modal-user" class="modal-overlay">
+        <div class="bg-white w-full max-w-lg rounded-2xl p-6 md:p-8 shadow-2xl">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-slate-800">Gerenciar Usuário</h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600"><i class="fas fa-times"></i></button>
+            </div>
+            <form id="edit-user-form" class="space-y-4">
+                <input type="hidden" id="edit-user-id">
+                <div class="grid grid-cols-1 gap-4">
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">Nome Completo</label>
+                        <input type="text" id="edit-user-nome" required class="w-full px-4">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">E-mail</label>
+                        <input type="email" id="edit-user-email" required class="w-full px-4">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">Nova Senha (deixe vazio para manter)</label>
+                        <input type="password" id="edit-user-pass" placeholder="••••••••" class="w-full px-4">
+                    </div>
+                    <div class="admin-only" id="role-field">
+                        <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">Permissão</label>
+                        <select id="edit-user-role" class="w-full px-4">
+                            <option value="user">Operador (Limitado)</option>
+                            <option value="admin">Administrador (Total)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="flex gap-3 mt-8">
+                    <button type="button" onclick="closeModal()" class="flex-1 bg-slate-100 text-slate-600 font-bold py-3 rounded-xl">Cancelar</button>
+                    <button type="submit" class="flex-1 bg-blue-600 text-white font-bold py-3 rounded-xl">Salvar Alterações</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="auth-container" class="fixed inset-0 z-[250] bg-slate-900 flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-md rounded-[2.5rem] p-8 md:p-12 shadow-2xl">
+            <div class="text-center mb-8">
+                <div class="bg-blue-600 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-xl shadow-blue-500/40">
+                    <i class="fas fa-wallet text-white text-2xl"></i>
+                </div>
+                <h1 id="auth-title" class="text-3xl font-black text-slate-800 tracking-tight">FinControl</h1>
+            </div>
+            <form id="auth-form" class="space-y-4">
+                <div id="field-name" class="hidden"><input type="text" id="auth-nome" placeholder="Nome Completo" class="w-full px-4"></div>
+                <input type="email" id="auth-email" required placeholder="Seu E-mail" class="w-full px-4">
+                <input type="password" id="auth-pass" required placeholder="Sua Senha" class="w-full px-4">
+                <button type="submit" id="auth-btn" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold text-lg hover:bg-blue-700 transition-all">Entrar</button>
+            </form>
+            <button onclick="toggleAuthMode()" id="auth-toggle-btn" class="w-full mt-6 text-sm text-blue-600 font-bold hover:underline">Configurar Acesso Administrativo</button>
+        </div>
+    </div>
+
+    <aside id="sidebar" class="bg-slate-900 flex flex-col shrink-0">
+        <div class="p-8 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-black text-xs">FC</div>
+                <span class="text-white font-black text-xl tracking-tighter">FinControl</span>
+            </div>
+            <button onclick="toggleSidebar()" class="lg:hidden text-slate-400"><i class="fas fa-times text-xl"></i></button>
+        </div>
+        
+        <nav class="flex-1 px-4 space-y-1 overflow-y-auto no-scrollbar">
+            <button onclick="showSection('dashboard')" id="btn-dashboard" class="nav-btn w-full flex items-center p-4 rounded-xl text-slate-400 hover:text-white transition nav-btn-active">
+                <i class="fas fa-grid-2 mr-3 w-5"></i> Dashboard
+            </button>
+            <button onclick="showSection('clientes')" id="btn-clientes" class="nav-btn w-full flex items-center p-4 rounded-xl text-slate-400 hover:text-white transition">
+                <i class="fas fa-users mr-3 w-5"></i> Clientes
+            </button>
+            <button onclick="showSection('vendas')" id="btn-vendas" class="nav-btn w-full flex items-center p-4 rounded-xl text-slate-400 hover:text-white transition">
+                <i class="fas fa-shopping-cart mr-3 w-5"></i> Vendas
+            </button>
+            <button onclick="showSection('produtos')" id="btn-produtos" class="nav-btn w-full flex items-center p-4 rounded-xl text-slate-400 hover:text-white transition">
+                <i class="fas fa-box mr-3 w-5"></i> Produtos
+            </button>
+            <button onclick="showSection('financeiro')" id="btn-financeiro" class="nav-btn w-full flex items-center p-4 rounded-xl text-slate-400 hover:text-white transition">
+                <i class="fas fa-hand-holding-usd mr-3 w-5"></i> Financeiro
+            </button>
+
+            <div class="admin-only pt-6 mt-6 border-t border-slate-800">
+                <p class="px-4 text-[10px] font-bold text-slate-600 uppercase tracking-widest mb-2">Administrativo</p>
+                <button onclick="showSection('usuarios')" id="btn-usuarios" class="nav-btn w-full flex items-center p-4 rounded-xl text-slate-400 hover:text-white transition">
+                    <i class="fas fa-user-shield mr-3 w-5"></i> Gestão de Equipe
+                </button>
+                <button onclick="showSection('config')" id="btn-config" class="nav-btn w-full flex items-center p-4 rounded-xl text-slate-400 hover:text-white transition">
+                    <i class="fas fa-database mr-3 w-5"></i> Backup e Dados
+                </button>
+            </div>
+        </nav>
+
+        <div class="p-6 bg-slate-950/40">
+            <div onclick="openUserSelfEdit()" class="flex items-center gap-3 cursor-pointer hover:bg-slate-800 p-2 rounded-xl transition">
+                <div id="user-initial" class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold">U</div>
+                <div class="overflow-hidden">
+                    <p id="user-name-display" class="text-sm font-bold text-white truncate"></p>
+                    <p id="user-role-display" class="text-[9px] text-slate-500 uppercase font-black"></p>
+                </div>
+            </div>
+            <button onclick="logout()" class="w-full mt-4 text-red-500 text-xs font-bold py-2 hover:bg-red-500/10 rounded-lg flex items-center justify-center gap-2">
+                <i class="fas fa-power-off"></i> Sair do Sistema
+            </button>
+        </div>
+    </aside>
+
+    <main class="flex-1 flex flex-col min-w-0 h-screen">
+        <header class="h-20 bg-white border-b flex items-center justify-between px-6 lg:px-10 shrink-0">
+            <div class="flex items-center gap-4">
+                <button onclick="toggleSidebar()" class="lg:hidden w-10 h-10 flex items-center justify-center bg-slate-100 rounded-xl text-slate-600">
+                    <i class="fas fa-bars text-lg"></i>
+                </button>
+                <h2 id="page-title" class="text-xl font-black text-slate-800 uppercase tracking-tight">Dashboard</h2>
+            </div>
+            <div class="hidden md:block text-slate-400 text-sm font-medium" id="current-date"></div>
+        </header>
+
+        <div class="flex-1 overflow-y-auto p-4 md:p-10 no-scrollbar">
+            
+            <section id="sec-dashboard" class="space-y-6">
+                <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+                    <div class="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100">
+                        <span class="text-slate-400 text-[10px] font-black uppercase tracking-widest">Faturamento Geral</span>
+                        <h3 id="dash-saldo" class="text-3xl font-black text-emerald-600 mt-2">R$ 0,00</h3>
+                    </div>
+                    <div class="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100">
+                        <span class="text-slate-400 text-[10px] font-black uppercase tracking-widest">Base de Clientes</span>
+                        <h3 id="dash-clientes" class="text-3xl font-black text-blue-600 mt-2">0</h3>
+                    </div>
+                    <div class="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 sm:col-span-2 xl:col-span-1">
+                        <span class="text-slate-400 text-[10px] font-black uppercase tracking-widest">Vendas Concluídas</span>
+                        <h3 id="dash-vendas" class="text-3xl font-black text-slate-800 mt-2">0</h3>
+                    </div>
+                </div>
+            </section>
+
+            <section id="sec-clientes" class="hidden space-y-8">
+                <div class="bg-white p-6 md:p-10 rounded-[2.5rem] shadow-sm">
+                    <h4 class="font-bold text-lg mb-6">Novo Cadastro</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <input type="text" id="cli-nome" placeholder="Nome Completo" class="px-4">
+                        <input type="text" id="cli-cpf" placeholder="CPF/CNPJ" class="px-4">
+                        <input type="text" id="cli-tel" placeholder="Telefone" class="px-4">
+                        <input type="text" id="cli-end" placeholder="Endereço Completo" class="md:col-span-2 px-4">
+                        <button onclick="registrarCliente()" class="bg-blue-600 text-white font-bold rounded-xl h-12 shadow-lg shadow-blue-200">Salvar</button>
+                    </div>
+                </div>
+                <div class="table-res bg-white shadow-sm">
+                    <table class="w-full text-left border-collapse">
+                        <thead class="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                            <tr><th class="p-6">Nome</th><th class="p-6">Contato/Doc</th><th class="p-6">Endereço</th><th class="p-6 text-right">Ação</th></tr>
+                        </thead>
+                        <tbody id="lista-clientes" class="divide-y divide-slate-100"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="sec-vendas" class="hidden space-y-8">
+                <div class="bg-white p-6 md:p-10 rounded-[2.5rem] shadow-sm grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <select id="venda-cliente-select" class="px-4"></select>
+                    <select id="venda-produto-select" class="px-4"></select>
+                    <select id="venda-pagamento" class="px-4">
+                        <option value="PIX">PIX</option>
+                        <option value="Cartão">Cartão</option>
+                        <option value="Dinheiro">Dinheiro</option>
+                    </select>
+                    <button onclick="registrarVenda()" class="bg-emerald-600 text-white font-bold rounded-xl h-12">Lançar</button>
+                </div>
+                <div class="table-res bg-white shadow-sm">
+                    <table class="w-full text-left">
+                        <thead class="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                            <tr><th class="p-6">Data</th><th class="p-6">Cliente</th><th class="p-6">Produto</th><th class="p-6 text-right">Total</th></tr>
+                        </thead>
+                        <tbody id="lista-vendas" class="divide-y divide-slate-100"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="sec-usuarios" class="hidden">
+                <div class="table-res bg-white shadow-sm rounded-[2rem]">
+                    <table class="w-full text-left">
+                        <thead class="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                            <tr><th class="p-6">Colaborador</th><th class="p-6">Acesso</th><th class="p-6 text-center">Gestão</th></tr>
+                        </thead>
+                        <tbody id="lista-usuarios" class="divide-y divide-slate-100"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="sec-financeiro" class="hidden space-y-8">
+                <div class="bg-slate-900 p-10 md:p-16 rounded-[3rem] text-center">
+                    <span class="text-blue-500 font-bold uppercase text-xs tracking-widest">Fluxo de Caixa</span>
+                    <h2 id="fin-total" class="text-white text-4xl md:text-6xl font-black mt-4">R$ 0,00</h2>
+                </div>
+                <div class="table-res bg-white shadow-sm">
+                    <table class="w-full text-left">
+                        <tbody id="lista-financeiro" class="divide-y divide-slate-100"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="sec-produtos" class="hidden space-y-8">
+                <div class="bg-white p-6 rounded-3xl flex flex-col md:flex-row gap-4">
+                    <input type="text" id="prod-nome" placeholder="Descrição do Produto/Serviço" class="flex-1 px-4">
+                    <input type="number" id="prod-preco" placeholder="Valor R$" class="md:w-40 px-4">
+                    <button onclick="adicionarProduto()" class="bg-slate-800 text-white px-10 rounded-xl h-12 font-bold">Cadastrar</button>
+                </div>
+                <div class="table-res bg-white shadow-sm">
+                    <table class="w-full text-left">
+                        <tbody id="lista-produtos" class="divide-y divide-slate-100"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="sec-config" class="hidden space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-white p-8 rounded-3xl shadow-sm">
+                        <h5 class="font-bold mb-4">Exportar Segurança</h5>
+                        <button onclick="downloadBackup()" class="w-full bg-slate-900 text-white py-4 rounded-xl font-bold">Gerar Backup .JSON</button>
+                    </div>
+                    <div class="bg-white p-8 rounded-3xl shadow-sm">
+                        <h5 class="font-bold mb-4">Restaurar Dados</h5>
+                        <input type="file" id="importFile" class="text-xs mb-4 w-full">
+                        <button onclick="importBackup()" class="w-full bg-blue-600 text-white py-4 rounded-xl font-bold">Carregar Banco</button>
+                    </div>
+                </div>
+                <button onclick="resetSystem()" class="w-full bg-red-50 text-red-600 py-5 rounded-3xl border border-red-100 font-black uppercase text-xs tracking-widest mt-12">Limpar Todo o Sistema</button>
+            </section>
+
+        </div>
+    </main>
+
+    <script>
+        // --- MOTOR DE DADOS ---
+        const DB_KEY = 'fincontrol_v16_final_stable';
+        let db = JSON.parse(localStorage.getItem(DB_KEY)) || {
+            users: [], clientes: [], produtos: [], vendas: [], financeiro: []
+        };
+        let currentUser = JSON.parse(sessionStorage.getItem('erp_session')) || null;
+
+        const save = () => { localStorage.setItem(DB_KEY, JSON.stringify(db)); renderAll(); };
+
+        // --- CONTROLE DE UI ---
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('open');
+            document.getElementById('overlay').classList.toggle('hidden');
+        }
+
+        function showSection(id) {
+            document.querySelectorAll('main section').forEach(s => s.classList.add('hidden'));
+            document.getElementById('sec-' + id).classList.remove('hidden');
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('nav-btn-active'));
+            document.getElementById('btn-' + id).classList.add('nav-btn-active');
+            document.getElementById('page-title').innerText = id;
+            if(window.innerWidth < 1024) toggleSidebar();
+        }
+
+        // --- AUTENTICAÇÃO ---
+        let authMode = 'login';
+        function checkFirstRun() {
+            if (db.users.length > 0) document.getElementById('auth-toggle-btn').classList.add('hidden');
+        }
+
+        function toggleAuthMode() {
+            authMode = authMode === 'login' ? 'register' : 'login';
+            document.getElementById('auth-title').innerText = authMode === 'login' ? 'FinControl' : 'Novo Admin';
+            document.getElementById('field-name').classList.toggle('hidden');
+        }
+
+        document.getElementById('auth-form').onsubmit = (e) => {
+            e.preventDefault();
+            const email = document.getElementById('auth-email').value;
+            const pass = document.getElementById('auth-pass').value;
+
+            if (authMode === 'register') {
+                db.users.push({ id: Date.now(), nome: document.getElementById('auth-nome').value, email, pass, role: 'admin' });
+                save(); location.reload();
+            } else {
+                const user = db.users.find(u => u.email === email && u.pass === pass);
+                if (user) { sessionStorage.setItem('erp_session', JSON.stringify(user)); location.reload(); }
+                else alert("Acesso Negado!");
+            }
+        };
+
+        function logout() { sessionStorage.clear(); location.reload(); }
+
+        // --- GESTÃO DE USUÁRIOS ---
+        function openEditUser(id) {
+            const user = db.users.find(u => u.id == id);
+            if(!user) return;
+            document.getElementById('edit-user-id').value = user.id;
+            document.getElementById('edit-user-nome').value = user.nome;
+            document.getElementById('edit-user-email').value = user.email;
+            document.getElementById('edit-user-role').value = user.role;
+            document.getElementById('edit-user-pass').value = '';
+            document.getElementById('modal-user').classList.add('active');
+        }
+
+        function openUserSelfEdit() { openEditUser(currentUser.id); }
+        function closeModal() { document.getElementById('modal-user').classList.remove('active'); }
+
+        document.getElementById('edit-user-form').onsubmit = (e) => {
+            e.preventDefault();
+            const id = document.getElementById('edit-user-id').value;
+            const idx = db.users.findIndex(u => u.id == id);
+            
+            db.users[idx].nome = document.getElementById('edit-user-nome').value;
+            db.users[idx].email = document.getElementById('edit-user-email').value;
+            if(currentUser.role === 'admin') db.users[idx].role = document.getElementById('edit-user-role').value;
+            
+            const nP = document.getElementById('edit-user-pass').value;
+            if(nP) db.users[idx].pass = nP;
+
+            if(id == currentUser.id) sessionStorage.setItem('erp_session', JSON.stringify(db.users[idx]));
+            save(); closeModal(); location.reload();
+        };
+
+        function deleteUser(id) {
+            if(id == currentUser.id) return alert("Não é possível remover a si próprio.");
+            if(confirm("Confirmar exclusão?")) { db.users = db.users.filter(u => u.id != id); save(); }
+        }
+
+        // --- CORE ERP ---
+        function registrarCliente() {
+            const nome = document.getElementById('cli-nome').value;
+            if(!nome) return alert("Nome obrigatório");
+            db.clientes.push({ id: Date.now(), nome, cpf: document.getElementById('cli-cpf').value, tel: document.getElementById('cli-tel').value, end: document.getElementById('cli-end').value });
+            save();
+            document.querySelectorAll('#sec-clientes input').forEach(i => i.value = '');
+        }
+
+        function registrarVenda() {
+            const pIdx = document.getElementById('venda-produto-select').value;
+            const cNome = document.getElementById('venda-cliente-select').value;
+            if(pIdx === "" || !cNome) return alert("Selecione os campos");
+            const p = db.produtos[pIdx];
+            const data = new Date().toLocaleDateString('pt-BR');
+            db.vendas.push({ data, cliente: cNome, produto: p.nome, valor: p.preco });
+            db.financeiro.push({ data, desc: `Venda: ${p.nome}`, valor: p.preco });
+            save();
+            alert("Venda Lançada!");
+        }
+
+        function adicionarProduto() {
+            const n = document.getElementById('prod-nome').value;
+            const p = parseFloat(document.getElementById('prod-preco').value);
+            if(n && p) { db.produtos.push({ nome: n, preco: p }); save(); }
+        }
+
+        // --- RENDERIZAÇÃO ---
+        function renderAll() {
+            if(currentUser?.role === 'admin') document.body.classList.add('is-admin');
+            
+            if(currentUser) {
+                document.getElementById('user-name-display').innerText = currentUser.nome;
+                document.getElementById('user-role-display').innerText = currentUser.role;
+                document.getElementById('user-initial').innerText = currentUser.nome.charAt(0);
+            }
+
+            const total = db.financeiro.reduce((a,b) => a + (b.valor || 0), 0);
+            document.getElementById('dash-saldo').innerText = `R$ ${total.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+            document.getElementById('dash-clientes').innerText = db.clientes.length;
+            document.getElementById('dash-vendas').innerText = db.vendas.length;
+            document.getElementById('fin-total').innerText = `R$ ${total.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+
+            // Selects
+            document.getElementById('venda-cliente-select').innerHTML = '<option value="">Cliente...</option>' + db.clientes.map(c => `<option value="${c.nome}">${c.nome}</option>`).join('');
+            document.getElementById('venda-produto-select').innerHTML = '<option value="">Produto...</option>' + db.produtos.map((p,i) => `<option value="${i}">${p.nome}</option>`).join('');
+
+            // Tabelas
+            document.getElementById('lista-clientes').innerHTML = db.clientes.map(c => `<tr><td class="p-6 font-bold">${c.nome}</td><td class="p-6 text-slate-500 text-xs">${c.cpf || '--'}<br>${c.tel || ''}</td><td class="p-6 text-[10px] text-slate-400 max-w-[150px] truncate">${c.end || ''}</td><td class="p-6 text-right"><button onclick="db.clientes=db.clientes.filter(x=>x.id!==${c.id});save()" class="text-red-400 hover:text-red-600"><i class="fas fa-trash-alt"></i></button></td></tr>`).join('');
+            document.getElementById('lista-vendas').innerHTML = db.vendas.slice().reverse().map(v => `<tr><td class="p-6 text-[10px] text-slate-400">${v.data}</td><td class="p-6 font-bold text-slate-700">${v.cliente}</td><td class="p-6 text-slate-500">${v.produto}</td><td class="p-6 font-black text-right">R$ ${v.valor.toFixed(2)}</td></tr>`).join('');
+            document.getElementById('lista-produtos').innerHTML = db.produtos.map((p,i) => `<tr><td class="p-6 font-bold">${p.nome}</td><td class="p-6 font-black">R$ ${p.preco.toFixed(2)}</td><td class="p-6 text-right"><button onclick="db.produtos.splice(${i},1);save()" class="text-red-400"><i class="fas fa-times-circle"></i></button></td></tr>`).join('');
+            document.getElementById('lista-financeiro').innerHTML = db.financeiro.slice().reverse().map(f => `<tr><td class="p-6 text-[10px] font-mono text-slate-400">${f.data}</td><td class="p-6 font-medium">${f.desc}</td><td class="p-6 text-emerald-600 font-black text-right">+R$ ${f.valor.toFixed(2)}</td></tr>`).join('');
+            
+            document.getElementById('lista-usuarios').innerHTML = db.users.map(u => `<tr><td class="p-6 font-bold">${u.nome}<br><span class="text-[10px] text-slate-400">${u.email}</span></td><td class="p-6"><span class="px-2 py-1 rounded-lg text-[9px] font-black ${u.role==='admin'?'bg-purple-100 text-purple-600':'bg-slate-100 text-slate-500'} uppercase">${u.role}</span></td><td class="p-6 text-center space-x-4"><button onclick="openEditUser(${u.id})" class="text-blue-500"><i class="fas fa-edit"></i></button>${u.id != currentUser.id ? `<button onclick="deleteUser(${u.id})" class="text-red-400"><i class="fas fa-trash"></i></button>` : ''}</td></tr>`).join('');
+        }
+
+        // --- BACKUP ---
+        function downloadBackup() {
+            const blob = new Blob([JSON.stringify(db)], {type: 'application/json'});
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'backup_erp.json'; a.click();
+        }
+
+        function importBackup() {
+            const file = document.getElementById('importFile').files[0];
+            const reader = new FileReader();
+            reader.onload = (e) => { db = JSON.parse(e.target.result); save(); location.reload(); };
+            reader.readAsText(file);
+        }
+
+        function resetSystem() { if(confirm("CUIDADO: Apagar todos os dados permanentemente?")) { localStorage.clear(); location.reload(); } }
+
+        // --- INIT ---
+        document.getElementById('current-date').innerText = new Date().toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        checkFirstRun();
+        if(currentUser) {
+            document.getElementById('auth-container').style.display = 'none';
+            renderAll();
+        }
+    </script>
+</body>
+</html>
