@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FinControl Pro - ERP & OS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        :root { --sidebar-width: 260px; }
+        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; overflow: hidden; }
+        #sidebar { width: var(--sidebar-width); transition: all 0.3s ease; z-index: 100; }
+        @media (max-width: 1024px) {
+            #sidebar { position: fixed; left: calc(-1 * var(--sidebar-width)); height: 100vh; }
+            #sidebar.open { left: 0; }
+        }
+        .nav-btn-active { background-color: #2563eb !important; color: white !important; }
+        .table-res { width: 100%; overflow-x: auto; background: white; border-radius: 12px; }
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index: 200; align-items: center; justify-content: center; padding: 15px; }
+        .modal-overlay.active { display: flex; }
+        input, select, textarea { border: 1px solid #cbd5e1; border-radius: 10px; padding: 10px; font-size: 14px; width: 100%; }
+        .admin-only { display: none; }
+        body.is-admin .admin-only { display: block; }
+    </style>
+</head>
+<body class="flex h-screen">
+
+    <div id="overlay" onclick="toggleSidebar()" class="fixed inset-0 bg-black/50 z-[90] hidden lg:hidden"></div>
+
+    <div id="modal-user" class="modal-overlay">
+        <div class="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl">
+            <h3 class="text-xl font-bold mb-4">Editar Usuário</h3>
+            <form id="edit-user-form" class="space-y-4">
+                <input type="hidden" id="edit-user-id">
+                <input type="text" id="edit-user-nome" placeholder="Nome" required>
+                <input type="email" id="edit-user-email" placeholder="E-mail" required>
+                <input type="password" id="edit-user-pass" placeholder="Nova Senha (opcional)">
+                <div class="admin-only"><select id="edit-user-role"><option value="user">Operador</option><option value="admin">Administrador</option></select></div>
+                <div class="flex gap-2"><button type="button" onclick="closeModal()" class="flex-1 bg-slate-100 py-3 rounded-xl">Cancelar</button>
+                <button type="submit" class="flex-1 bg-blue-600 text-white py-3 rounded-xl">Salvar</button></div>
+            </form>
+        </div>
+    </div>
+
+    <div id="auth-container" class="fixed inset-0 z-[250] bg-slate-900 flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-md rounded-3xl p-8 shadow-2xl text-center">
+            <h1 class="text-3xl font-black mb-6">FinControl</h1>
+            <form id="auth-form" class="space-y-4 text-left">
+                <div id="field-name" class="hidden"><input type="text" id="auth-nome" placeholder="Nome Completo"></div>
+                <input type="email" id="auth-email" required placeholder="E-mail">
+                <input type="password" id="auth-pass" required placeholder="Senha">
+                <button type="submit" class="w-full bg-blue-600 text-white py-4 rounded-xl font-bold">Entrar</button>
+            </form>
+            <button onclick="toggleAuthMode()" id="auth-toggle-btn" class="mt-4 text-blue-600 text-sm font-bold">Primeiro Acesso?</button>
+        </div>
+    </div>
+
+    <aside id="sidebar" class="bg-slate-900 shrink-0 flex flex-col text-slate-400">
+        <div class="p-6 text-white font-black text-xl border-b border-slate-800 flex justify-between">
+            FinControl <button onclick="toggleSidebar()" class="lg:hidden"><i class="fas fa-times"></i></button>
+        </div>
+        <nav class="flex-1 p-4 space-y-1 overflow-y-auto">
+            <button onclick="showSection('dashboard')" id="btn-dashboard" class="nav-btn w-full flex items-center p-3 rounded-xl nav-btn-active"><i class="fas fa-chart-line mr-3"></i> Dashboard</button>
+            <button onclick="showSection('clientes')" id="btn-clientes" class="nav-btn w-full flex items-center p-3 rounded-xl"><i class="fas fa-users mr-3"></i> Clientes</button>
+            <button onclick="showSection('tecnicos')" id="btn-tecnicos" class="nav-btn w-full flex items-center p-3 rounded-xl"><i class="fas fa-wrench mr-3"></i> Técnicos</button>
+            <button onclick="showSection('os')" id="btn-os" class="nav-btn w-full flex items-center p-3 rounded-xl"><i class="fas fa-file-signature mr-3"></i> Ordens de Serviço</button>
+            <button onclick="showSection('vendas')" id="btn-vendas" class="nav-btn w-full flex items-center p-3 rounded-xl"><i class="fas fa-shopping-cart mr-3"></i> Vendas</button>
+            <button onclick="showSection('produtos')" id="btn-produtos" class="nav-btn w-full flex items-center p-3 rounded-xl"><i class="fas fa-box mr-3"></i> Produtos</button>
+            <button onclick="showSection('financeiro')" id="btn-financeiro" class="nav-btn w-full flex items-center p-3 rounded-xl"><i class="fas fa-wallet mr-3"></i> Financeiro</button>
+            <div class="admin-only border-t border-slate-800 mt-4 pt-4">
+                <button onclick="showSection('usuarios')" id="btn-usuarios" class="nav-btn w-full flex items-center p-3 rounded-xl"><i class="fas fa-user-shield mr-3"></i> Equipe</button>
+                <button onclick="showSection('config')" id="btn-config" class="nav-btn w-full flex items-center p-3 rounded-xl"><i class="fas fa-database mr-3"></i> Ajustes</button>
+            </div>
+        </nav>
+        <div class="p-4 bg-slate-950/50">
+            <div onclick="openUserSelfEdit()" class="cursor-pointer p-2 flex items-center gap-2 hover:bg-slate-800 rounded-lg">
+                <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold" id="user-initial">U</div>
+                <div class="truncate"><p id="user-name-display" class="text-xs text-white font-bold"></p></div>
+            </div>
+            <button onclick="logout()" class="w-full mt-2 text-red-500 text-[10px] font-bold uppercase">Sair</button>
+        </div>
+    </aside>
+
+    <main class="flex-1 flex flex-col min-w-0">
+        <header class="h-16 bg-white border-b flex items-center px-6 justify-between">
+            <div class="flex items-center gap-4">
+                <button onclick="toggleSidebar()" class="lg:hidden text-slate-600"><i class="fas fa-bars"></i></button>
+                <h2 id="page-title" class="font-black text-slate-800 uppercase">Dashboard</h2>
+            </div>
+        </header>
+
+        <div class="flex-1 overflow-y-auto p-4 md:p-8 space-y-6">
+            
+            <section id="sec-dashboard" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-emerald-500">
+                    <p class="text-xs font-bold text-slate-400">SALDO TOTAL</p>
+                    <h3 id="dash-saldo" class="text-2xl font-black text-slate-800">R$ 0,00</h3>
+                </div>
+                <div class="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-blue-500">
+                    <p class="text-xs font-bold text-slate-400">CLIENTES</p>
+                    <h3 id="dash-clientes" class="text-2xl font-black text-slate-800">0</h3>
+                </div>
+                <div class="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-orange-500">
+                    <p class="text-xs font-bold text-slate-400">OS ABERTAS</p>
+                    <h3 id="dash-os" class="text-2xl font-black text-slate-800">0</h3>
+                </div>
+            </section>
+
+            <section id="sec-tecnicos" class="hidden space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm">
+                    <div class="flex flex-col md:flex-row gap-4">
+                        <input type="text" id="tec-nome" placeholder="Nome do Técnico">
+                        <input type="text" id="tec-esp" placeholder="Especialidade">
+                        <button onclick="registrarTecnico()" class="bg-blue-600 text-white px-6 rounded-xl font-bold">Adicionar</button>
+                    </div>
+                </div>
+                <div class="table-res"><table class="w-full"><tbody id="lista-tecnicos" class="divide-y"></tbody></table></div>
+            </section>
+
+            <section id="sec-os" class="hidden space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <input type="text" id="os-cliente" placeholder="Nome do Cliente">
+                        <input type="text" id="os-tel" placeholder="Telefone">
+                        <input type="text" id="os-end" placeholder="Endereço" class="md:col-span-2">
+                        <select id="os-tecnico"></select>
+                        <textarea id="os-desc" placeholder="Descrição do Serviço" class="md:col-span-2 h-24"></textarea>
+                    </div>
+                    <button onclick="registrarOS()" class="bg-blue-600 text-white w-full py-3 rounded-xl font-bold">Abrir Ordem de Serviço</button>
+                </div>
+                <div class="table-res">
+                    <table class="w-full text-left">
+                        <thead class="bg-slate-50 text-[10px] font-bold uppercase"><tr><th class="p-4">OS #</th><th class="p-4">Cliente</th><th class="p-4">Técnico</th><th class="p-4 text-right">Ações</th></tr></thead>
+                        <tbody id="lista-os" class="divide-y"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="sec-vendas" class="hidden space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <select id="venda-cliente-select"></select>
+                        <select id="venda-produto-select"></select>
+                        <select id="venda-pagamento">
+                            <option value="Dinheiro">Dinheiro</option>
+                            <option value="PIX">PIX</option>
+                            <option value="Cartão de Crédito">Cartão de Crédito</option>
+                            <option value="Cartão de Débito">Cartão de Débito</option>
+                            <option value="Boleto">Boleto</option>
+                        </select>
+                        <input type="text" id="venda-obs" placeholder="Observação (Opcional)" class="lg:col-span-2">
+                        <button onclick="registrarVenda()" class="bg-emerald-600 text-white font-bold rounded-xl h-12">Finalizar Venda</button>
+                    </div>
+                </div>
+                <div class="table-res">
+                    <table class="w-full text-left">
+                        <thead class="bg-slate-50 text-[10px] font-bold uppercase"><tr><th class="p-4">Data</th><th class="p-4">Cliente</th><th class="p-4">Produto</th><th class="p-4">Pagamento</th><th class="p-4 text-right">Valor</th></tr></thead>
+                        <tbody id="lista-vendas" class="divide-y"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="sec-financeiro" class="hidden space-y-6">
+                <div class="flex flex-wrap gap-4">
+                    <button onclick="exportarRelatorio('semanal')" class="bg-slate-800 text-white px-4 py-2 rounded-lg text-xs font-bold"><i class="fas fa-file-pdf mr-2"></i>Relatório Semanal</button>
+                    <button onclick="exportarRelatorio('mensal')" class="bg-slate-800 text-white px-4 py-2 rounded-lg text-xs font-bold"><i class="fas fa-file-pdf mr-2"></i>Relatório Mensal</button>
+                </div>
+                <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+                    <table class="w-full text-left">
+                        <thead class="bg-slate-50 text-[10px] font-bold uppercase"><tr><th class="p-4">Data</th><th class="p-4">Cliente / Produto</th><th class="p-4">Forma</th><th class="p-4 text-right">Valor</th></tr></thead>
+                        <tbody id="lista-financeiro" class="divide-y"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="sec-clientes" class="hidden space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <input type="text" id="cli-nome" placeholder="Nome"><input type="text" id="cli-tel" placeholder="Telefone">
+                    <button onclick="registrarCliente()" class="bg-blue-600 text-white font-bold py-2 rounded-xl md:col-span-2">Cadastrar Cliente</button>
+                </div>
+                <div id="lista-clientes-box" class="table-res"></div>
+            </section>
+
+            <section id="sec-produtos" class="hidden space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm flex gap-4"><input type="text" id="prod-nome" placeholder="Item"><input type="number" id="prod-preco" placeholder="R$"><button onclick="adicionarProduto()" class="bg-slate-800 text-white px-6 rounded-xl">Salvar</button></div>
+                <div id="lista-produtos-box" class="table-res"></div>
+            </section>
+
+            <section id="sec-usuarios" class="hidden"><div class="table-res"><table class="w-full text-left"><tbody id="lista-usuarios" class="divide-y"></tbody></table></div></section>
+            
+            <section id="sec-config" class="hidden space-y-4">
+                <button onclick="downloadBackup()" class="w-full bg-slate-900 text-white p-4 rounded-xl font-bold">Baixar Backup JSON</button>
+                <button onclick="resetSystem()" class="w-full bg-red-100 text-red-600 p-4 rounded-xl font-bold">Zerar Tudo</button>
+            </section>
+
+        </div>
+    </main>
+
+    <script>
+        // ENGINE
+        const DB_KEY = 'fincontrol_v17_final';
+        let db = JSON.parse(localStorage.getItem(DB_KEY)) || {
+            users: [], clientes: [], tecnicos: [], produtos: [], vendas: [], financeiro: [], os: []
+        };
+        let currentUser = JSON.parse(sessionStorage.getItem('erp_session')) || null;
+        const save = () => { localStorage.setItem(DB_KEY, JSON.stringify(db)); renderAll(); };
+
+        // UI
+        function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); document.getElementById('overlay').classList.toggle('hidden'); }
+        function showSection(id) {
+            document.querySelectorAll('main section').forEach(s => s.classList.add('hidden'));
+            document.getElementById('sec-' + id).classList.remove('hidden');
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('nav-btn-active'));
+            document.getElementById('btn-' + id).classList.add('nav-btn-active');
+            document.getElementById('page-title').innerText = id.replace('sec-', '');
+            if(window.innerWidth < 1024) toggleSidebar();
+        }
+
+        // TÉCNICOS
+        function registrarTecnico() {
+            const nome = document.getElementById('tec-nome').value;
+            if(!nome) return;
+            db.tecnicos.push({ id: Date.now(), nome, esp: document.getElementById('tec-esp').value });
+            save();
+            document.getElementById('tec-nome').value = '';
+        }
+
+        // ORDENS DE SERVIÇO
+        function registrarOS() {
+            const os = {
+                id: Math.floor(1000 + Math.random() * 9000),
+                cliente: document.getElementById('os-cliente').value,
+                tel: document.getElementById('os-tel').value,
+                end: document.getElementById('os-end').value,
+                tec: document.getElementById('os-tecnico').value,
+                desc: document.getElementById('os-desc').value,
+                data: new Date().toLocaleString()
+            };
+            if(!os.cliente) return alert("Nome do cliente obrigatório");
+            db.os.push(os);
+            save();
+            alert("Ordem de Serviço Aberta!");
+        }
+
+        function exportarOS(id) {
+            const item = db.os.find(x => x.id == id);
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            doc.setFontSize(20); doc.text("ORDEM DE SERVIÇO #" + item.id, 20, 20);
+            doc.setFontSize(12);
+            doc.text(`Data: ${item.data}`, 20, 40);
+            doc.text(`Cliente: ${item.cliente}`, 20, 50);
+            doc.text(`Telefone: ${item.tel}`, 20, 60);
+            doc.text(`Endereço: ${item.end}`, 20, 70);
+            doc.text(`Técnico: ${item.tec}`, 20, 80);
+            doc.line(20, 85, 190, 85);
+            doc.text("Descrição do Serviço:", 20, 95);
+            doc.text(doc.splitTextToSize(item.desc, 170), 20, 105);
+            doc.save(`OS_${item.id}.pdf`);
+        }
+
+        // VENDAS & FINANCEIRO
+        function registrarVenda() {
+            const pIdx = document.getElementById('venda-produto-select').value;
+            const cNome = document.getElementById('venda-cliente-select').value;
+            const pag = document.getElementById('venda-pagamento').value;
+            const obs = document.getElementById('venda-obs').value;
+            if(pIdx === "" || !cNome) return alert("Selecione os campos");
+            
+            const p = db.produtos[pIdx];
+            const data = new Date().toLocaleString('pt-BR');
+            const dataObj = new Date();
+
+            db.vendas.push({ data, cliente: cNome, produto: p.nome, valor: p.preco, pag, obs });
+            db.financeiro.push({ 
+                timestamp: dataObj.getTime(),
+                data, 
+                cliente: cNome, 
+                produto: p.nome, 
+                valor: p.preco, 
+                pag 
+            });
+            save();
+        }
+
+        function exportarRelatorio(tipo) {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            const agora = new Date().getTime();
+            const limit = tipo === 'semanal' ? 7 * 24 * 60 * 60 * 1000 : 30 * 24 * 60 * 60 * 1000;
+            
+            const filtrados = db.financeiro.filter(f => (agora - f.timestamp) <= limit);
+            
+            doc.text(`RELATÓRIO FINANCEIRO ${tipo.toUpperCase()}`, 14, 15);
+            const head = [['Data', 'Cliente', 'Produto', 'Forma', 'Valor']];
+            const body = filtrados.map(f => [f.data, f.cliente, f.produto, f.pag, `R$ ${f.valor.toFixed(2)}`]);
+            
+            doc.autoTable({ head, body, startY: 25 });
+            doc.save(`Relatorio_${tipo}.pdf`);
+        }
+
+        // RENDER
+        function renderAll() {
+            if(currentUser?.role === 'admin') document.body.classList.add('is-admin');
+            if(currentUser) {
+                document.getElementById('user-name-display').innerText = currentUser.nome;
+                document.getElementById('user-initial').innerText = currentUser.nome.charAt(0);
+            }
+
+            // Dashboard
+            const total = db.financeiro.reduce((a,b) => a + b.valor, 0);
+            document.getElementById('dash-saldo').innerText = `R$ ${total.toLocaleString('pt-BR', {minimumFractionDigits:2})}`;
+            document.getElementById('dash-clientes').innerText = db.clientes.length;
+            document.getElementById('dash-os').innerText = db.os.length;
+
+            // Selects
+            document.getElementById('venda-cliente-select').innerHTML = '<option value="">Cliente...</option>' + db.clientes.map(c => `<option value="${c.nome}">${c.nome}</option>`).join('');
+            document.getElementById('venda-produto-select').innerHTML = '<option value="">Item...</option>' + db.produtos.map((p,i) => `<option value="${i}">${p.nome}</option>`).join('');
+            document.getElementById('os-tecnico').innerHTML = '<option value="">Técnico Resp...</option>' + db.tecnicos.map(t => `<option value="${t.nome}">${t.nome}</option>`).join('');
+
+            // Tabelas
+            document.getElementById('lista-tecnicos').innerHTML = db.tecnicos.map(t => `<tr class="p-4"><td class="p-4 font-bold">${t.nome}</td><td class="p-4 text-slate-400">${t.esp}</td><td class="text-right p-4"><button onclick="db.tecnicos=db.tecnicos.filter(x=>x.id!==${t.id});save()" class="text-red-400"><i class="fas fa-trash"></i></button></td></tr>`).join('');
+            
+            document.getElementById('lista-os').innerHTML = db.os.slice().reverse().map(o => `<tr><td class="p-4 font-mono text-blue-600">#${o.id}</td><td class="p-4 font-bold">${o.cliente}</td><td class="p-4 text-xs">${o.tec}</td><td class="p-4 text-right flex justify-end gap-2"><button onclick="exportarOS(${o.id})" class="bg-blue-50 text-blue-600 p-2 rounded-lg"><i class="fas fa-file-pdf"></i></button><button onclick="db.os=db.os.filter(x=>x.id!==${o.id});save()" class="text-red-400 p-2"><i class="fas fa-trash"></i></button></td></tr>`).join('');
+            
+            document.getElementById('lista-vendas').innerHTML = db.vendas.slice().reverse().map(v => `<tr><td class="p-4 text-[10px] text-slate-400">${v.data}</td><td class="p-4 font-bold text-slate-700">${v.cliente}</td><td class="p-4 text-slate-500">${v.produto}</td><td class="p-4 text-[9px] uppercase font-bold">${v.pag}</td><td class="p-4 font-black text-right">R$ ${v.valor.toFixed(2)}</td></tr>`).join('');
+            
+            document.getElementById('lista-financeiro').innerHTML = db.financeiro.slice().reverse().map(f => `<tr><td class="p-4 text-[10px] text-slate-400">${f.data}</td><td class="p-4 text-xs font-bold">${f.cliente}<br><span class="text-slate-400 font-normal">${f.produto}</span></td><td class="p-4 text-[9px] uppercase font-bold">${f.pag}</td><td class="p-4 text-emerald-600 font-black text-right">R$ ${f.valor.toFixed(2)}</td></tr>`).join('');
+            
+            document.getElementById('lista-usuarios').innerHTML = db.users.map(u => `<tr><td class="p-4 font-bold">${u.nome}<br><small>${u.email}</small></td><td class="p-4"><span class="text-[9px] font-bold uppercase px-2 py-1 rounded bg-slate-100">${u.role}</span></td><td class="p-4 text-center"><button onclick="openEditUser(${u.id})" class="text-blue-500"><i class="fas fa-edit"></i></button></td></tr>`).join('');
+        }
+
+        // AUTH & SYSTEM (MANTIDO)
+        let authMode = 'login';
+        function toggleAuthMode() { authMode = authMode === 'login' ? 'register' : 'login'; document.getElementById('field-name').classList.toggle('hidden'); }
+        document.getElementById('auth-form').onsubmit = (e) => {
+            e.preventDefault();
+            if(authMode === 'register') { db.users.push({id:Date.now(), nome:document.getElementById('auth-nome').value, email:document.getElementById('auth-email').value, pass:document.getElementById('auth-pass').value, role:'admin'}); save(); location.reload(); }
+            else { const u = db.users.find(x => x.email === document.getElementById('auth-email').value && x.pass === document.getElementById('auth-pass').value); if(u){ sessionStorage.setItem('erp_session', JSON.stringify(u)); location.reload(); } else alert("Erro!"); }
+        };
+        function logout() { sessionStorage.clear(); location.reload(); }
+        function openEditUser(id) { const u = db.users.find(x => x.id == id); document.getElementById('edit-user-id').value = u.id; document.getElementById('edit-user-nome').value = u.nome; document.getElementById('edit-user-email').value = u.email; document.getElementById('modal-user').classList.add('active'); }
+        function openUserSelfEdit() { openEditUser(currentUser.id); }
+        function closeModal() { document.getElementById('modal-user').classList.remove('active'); }
+        document.getElementById('edit-user-form').onsubmit = (e) => {
+            e.preventDefault();
+            const idx = db.users.findIndex(u => u.id == document.getElementById('edit-user-id').value);
+            db.users[idx].nome = document.getElementById('edit-user-nome').value;
+            db.users[idx].email = document.getElementById('edit-user-email').value;
+            if(document.getElementById('edit-user-pass').value) db.users[idx].pass = document.getElementById('edit-user-pass').value;
+            save(); closeModal();
+        };
+
+        function registrarCliente() { db.clientes.push({id:Date.now(), nome:document.getElementById('cli-nome').value, tel:document.getElementById('cli-tel').value}); save(); }
+        function adicionarProduto() { db.produtos.push({nome:document.getElementById('prod-nome').value, preco:parseFloat(document.getElementById('prod-preco').value)}); save(); }
+        function downloadBackup() { const blob = new Blob([JSON.stringify(db)], {type:'application/json'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download='backup.json'; a.click(); }
+        function resetSystem() { if(confirm("Apagar tudo?")) { localStorage.clear(); location.reload(); } }
+
+        if(db.users.length > 0) document.getElementById('auth-toggle-btn').classList.add('hidden');
+        if(currentUser) { document.getElementById('auth-container').style.display = 'none'; renderAll(); }
+    </script>
+</body>
+</html>
