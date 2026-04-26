@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FinControl ERP - Gestão Profissional</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; color: #1e293b; overflow: hidden; }
+        .sidebar-active { background-color: #3b82f6 !important; color: white !important; }
+        input, select, textarea { border: 1px solid #e2e8f0; padding: 0.65rem; border-radius: 0.5rem; outline: none; width: 100%; transition: 0.3s; background: white; }
+        input:focus, select:focus { border-color: #3b82f6; ring: 3px; ring-color: rgba(59, 130, 246, 0.1); }
+        .card-shadow { box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1); }
+        @media (max-width: 768px) {
+            .sidebar { position: fixed; z-index: 50; transform: translateX(-100%); transition: 0.3s; height: 100%; }
+            .sidebar.open { transform: translateX(0); }
+        }
+    </style>
+</head>
+<body class="flex h-screen overflow-hidden">
+
+    <div id="auth-container" class="fixed inset-0 z-[100] bg-slate-900 flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl p-8">
+            <div class="text-center mb-6">
+                <div class="bg-blue-600 w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-xl shadow-blue-500/30">
+                    <i class="fas fa-wallet text-white text-xl"></i>
+                </div>
+                <h1 id="auth-title" class="text-2xl font-bold">FinControl ERP</h1>
+                <p id="auth-subtitle" class="text-slate-500 text-sm mt-1">Gestão Inteligente de Negócios</p>
+            </div>
+            <form onsubmit="handleAuth(event)" class="space-y-4">
+                <div id="field-name" class="hidden">
+                    <label class="text-xs font-bold text-slate-400 uppercase">Nome</label>
+                    <input type="text" id="auth-nome" placeholder="Seu nome">
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-slate-400 uppercase">E-mail</label>
+                    <input type="email" id="auth-email" required placeholder="exemplo@fin.com">
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-slate-400 uppercase">Senha</label>
+                    <input type="password" id="auth-pass" required placeholder="••••••••">
+                </div>
+                <button type="submit" id="auth-btn" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition">Entrar</button>
+            </form>
+            <button onclick="toggleAuthMode()" id="auth-toggle-text" class="w-full mt-6 text-sm text-blue-600 font-medium hover:underline">Novo por aqui? Criar conta</button>
+        </div>
+    </div>
+
+    <aside id="sidebar" class="sidebar w-64 bg-slate-900 text-slate-300 flex flex-col shadow-xl shrink-0">
+        <div class="p-6 text-xl font-extrabold text-white border-b border-slate-800 flex items-center gap-3">
+            <i class="fas fa-shield-halved text-blue-500"></i> FinControl
+        </div>
+        <nav class="flex-1 p-4 space-y-1 overflow-y-auto">
+            <button onclick="showSection('dashboard')" class="nav-btn w-full flex items-center p-3 rounded-lg active-nav sidebar-active" id="btn-dashboard">
+                <i class="fas fa-home mr-3 text-sm"></i> Dashboard
+            </button>
+            <button onclick="showSection('os')" class="nav-btn w-full flex items-center p-3 rounded-lg" id="btn-os">
+                <i class="fas fa-briefcase mr-3 text-sm"></i> Ordens de Serviço
+            </button>
+            <button onclick="showSection('vendas')" class="nav-btn w-full flex items-center p-3 rounded-lg" id="btn-vendas">
+                <i class="fas fa-shopping-cart mr-3 text-sm"></i> Vendas
+            </button>
+            <button onclick="showSection('produtos')" class="nav-btn w-full flex items-center p-3 rounded-lg" id="btn-produtos">
+                <i class="fas fa-tag mr-3 text-sm"></i> Produtos
+            </button>
+            <button onclick="showSection('financeiro')" class="nav-btn w-full flex items-center p-3 rounded-lg" id="btn-financeiro">
+                <i class="fas fa-chart-line mr-3 text-sm"></i> Financeiro
+            </button>
+            <button onclick="showSection('config')" class="nav-btn w-full flex items-center p-3 rounded-lg" id="btn-config">
+                <i class="fas fa-cog mr-3 text-sm"></i> Ajustes & Backup
+            </button>
+        </nav>
+        <div class="p-4 border-t border-slate-800">
+            <button onclick="logout()" class="w-full flex items-center justify-center gap-2 text-red-400 hover:text-red-300 text-sm font-bold py-2 transition">
+                <i class="fas fa-power-off"></i> Sair do Sistema
+            </button>
+        </div>
+    </aside>
+
+    <main class="flex-1 overflow-y-auto p-4 md:p-8">
+        <header class="flex justify-between items-center mb-8">
+            <h1 id="page-title" class="text-2xl font-black text-slate-800 tracking-tight">Painel de Controle</h1>
+            <div class="flex gap-2">
+                <button onclick="document.getElementById('sidebar').classList.toggle('open')" class="md:hidden p-2 bg-white rounded-lg shadow-sm">
+                    <i class="fas fa-bars"></i>
+                </button>
+            </div>
+        </header>
+
+        <section id="sec-dashboard" class="space-y-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="bg-white p-6 rounded-2xl border card-shadow"><p class="text-slate-400 text-xs font-bold uppercase mb-1">Saldo Líquido</p><h2 id="dash-saldo" class="text-2xl font-black text-green-600">R$ 0,00</h2></div>
+                <div class="bg-white p-6 rounded-2xl border card-shadow"><p class="text-slate-400 text-xs font-bold uppercase mb-1">O.S. em Aberto</p><h2 id="dash-os" class="text-2xl font-black text-amber-500">0</h2></div>
+                <div class="bg-white p-6 rounded-2xl border card-shadow"><p class="text-slate-400 text-xs font-bold uppercase mb-1">Total de Vendas</p><h2 id="dash-vendas" class="text-2xl font-black text-blue-600">0</h2></div>
+                <div class="bg-white p-6 rounded-2xl border card-shadow"><p class="text-slate-400 text-xs font-bold uppercase mb-1">Itens Ativos</p><h2 id="dash-estoque" class="text-2xl font-black text-slate-800">0</h2></div>
+            </div>
+            <div class="bg-white p-6 rounded-2xl border card-shadow"><canvas id="mainChart" height="110"></canvas></div>
+        </section>
+
+        <section id="sec-os" class="hidden space-y-6">
+            <div class="bg-white p-6 rounded-2xl border card-shadow">
+                <h3 class="font-bold mb-5 flex items-center gap-2"><i class="fas fa-file-circle-plus text-blue-500"></i> Registrar Nova O.S.</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <input type="text" id="os-cliente" placeholder="Nome do Cliente">
+                    <input type="text" id="os-tel" placeholder="Telefone/WhatsApp">
+                    <input type="text" id="os-tecnico" placeholder="Técnico Responsável">
+                    <input type="text" id="os-servico" placeholder="Serviço/Equipamento" class="md:col-span-2">
+                    <select id="os-pagamento">
+                        <option value="PIX">Pagamento via PIX</option>
+                        <option value="Dinheiro">Dinheiro</option>
+                        <option value="Cartão">Cartão de Crédito/Débito</option>
+                        <option value="Boleto">Boleto Bancário</option>
+                    </select>
+                    <select id="os-status">
+                        <option value="Aguardando">⚪ Aguardando</option>
+                        <option value="Pendente de Pagamento">🟡 Pendente de Pagamento</option>
+                        <option value="Pago">🟢 Pago</option>
+                        <option value="Concluído">🔵 Concluído</option>
+                    </select>
+                    <button onclick="registrarOS()" class="md:col-span-2 bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-100 transition">Gerar Protocolo de O.S.</button>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap gap-2">
+                <button onclick="exportRelatorioTemporal(7)" class="bg-slate-800 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-slate-700 transition"><i class="fas fa-file-pdf mr-2"></i>Relatório Semanal</button>
+                <button onclick="exportRelatorioTemporal(30)" class="bg-slate-800 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-slate-700 transition"><i class="fas fa-file-pdf mr-2"></i>Relatório Mensal</button>
+            </div>
+
+            <div class="bg-white rounded-2xl border shadow-sm overflow-x-auto">
+                <table class="w-full text-left text-sm min-w-[900px]">
+                    <thead class="bg-slate-50 border-b">
+                        <tr>
+                            <th class="p-4 text-xs font-bold text-slate-400 uppercase">Data</th>
+                            <th class="p-4 text-xs font-bold text-slate-400 uppercase">Cliente</th>
+                            <th class="p-4 text-xs font-bold text-slate-400 uppercase">Técnico</th>
+                            <th class="p-4 text-xs font-bold text-slate-400 uppercase">Status</th>
+                            <th class="p-4 text-center text-xs font-bold text-slate-400 uppercase">Ação</th>
+                        </tr>
+                    </thead>
+                    <tbody id="lista-os" class="divide-y"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="sec-financeiro" class="hidden space-y-6">
+            <div class="bg-slate-900 p-12 rounded-3xl text-center text-white shadow-2xl relative overflow-hidden">
+                <div class="absolute -top-10 -right-10 w-40 h-40 bg-blue-500/20 rounded-full blur-3xl"></div>
+                <p class="text-xs uppercase tracking-widest opacity-60 font-bold">Saldo Disponível</p>
+                <h1 id="fin-total" class="text-5xl font-black mt-2">R$ 0,00</h1>
+            </div>
+            <div class="bg-white rounded-2xl border card-shadow overflow-hidden">
+                <table class="w-full text-left text-sm"><tbody id="lista-financeiro" class="divide-y"></tbody></table>
+            </div>
+        </section>
+
+        <section id="sec-vendas" class="hidden space-y-6">
+            <div class="bg-white p-6 rounded-2xl border card-shadow">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <input type="text" id="venda-cliente" placeholder="Cliente">
+                    <select id="venda-produto"></select>
+                    <button onclick="registrarVenda()" class="bg-emerald-600 text-white font-bold rounded-lg hover:bg-emerald-700">Lançar Venda</button>
+                </div>
+            </div>
+            <div class="bg-white rounded-2xl border shadow-sm overflow-hidden text-sm"><table class="w-full text-left"><tbody id="lista-vendas" class="divide-y"></tbody></table></div>
+        </section>
+
+        <section id="sec-produtos" class="hidden space-y-6">
+            <div class="bg-white p-6 rounded-2xl border shadow-sm">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <input type="text" id="prod-nome" placeholder="Produto/Serviço">
+                    <input type="number" id="prod-preco" placeholder="Preço Sugerido R$">
+                    <button onclick="adicionarProduto()" class="bg-slate-800 text-white font-bold rounded-lg">Cadastrar</button>
+                </div>
+            </div>
+            <div class="bg-white rounded-2xl border shadow-sm overflow-hidden"><table class="w-full text-left text-sm"><tbody id="lista-produtos" class="divide-y"></tbody></table></div>
+        </section>
+
+        <section id="sec-config" class="hidden space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-white p-8 rounded-2xl border card-shadow">
+                    <h4 class="font-bold mb-4">Exportar Base de Dados</h4>
+                    <p class="text-xs text-slate-500 mb-6">Gera um arquivo .json com todos os registros atuais para segurança.</p>
+                    <button onclick="downloadBackup()" class="w-full bg-slate-900 text-white py-3 rounded-xl font-bold">Download Backup</button>
+                </div>
+                <div class="bg-white p-8 rounded-2xl border card-shadow">
+                    <h4 class="font-bold mb-4">Importar / Resetar</h4>
+                    <input type="file" id="importFile" class="text-xs mb-4">
+                    <div class="flex gap-2">
+                        <button onclick="importBackup()" class="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold">Importar</button>
+                        <button onclick="resetSystem()" class="bg-red-50 text-red-600 px-4 py-3 rounded-xl font-bold">Limpar</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // --- ENGINE DE DADOS ---
+        let authMode = 'login';
+        let db = JSON.parse(localStorage.getItem('fincontrol_v5')) || {
+            users: [], produtos: [], vendas: [], financeiro: [], os: []
+        };
+
+        const save = () => { 
+            localStorage.setItem('fincontrol_v5', JSON.stringify(db)); 
+            renderAll(); 
+        };
+
+        // --- AUTENTICAÇÃO ---
+        function toggleAuthMode() {
+            authMode = authMode === 'login' ? 'register' : 'login';
+            document.getElementById('auth-title').innerText = authMode === 'login' ? 'FinControl ERP' : 'Nova Conta';
+            document.getElementById('auth-toggle-text').innerText = authMode === 'login' ? 'Novo por aqui? Criar conta' : 'Já tem conta? Entrar';
+            document.getElementById('field-name').classList.toggle('hidden');
+        }
+
+        function handleAuth(e) {
+            e.preventDefault();
+            const email = document.getElementById('auth-email').value;
+            const pass = document.getElementById('auth-pass').value;
+            if(authMode === 'register') {
+                db.users.push({ nome: document.getElementById('auth-nome').value, email, pass });
+                save(); alert("Registro realizado!"); toggleAuthMode();
+            } else {
+                const user = db.users.find(u => u.email === email && u.pass === pass);
+                if(user) { 
+                    sessionStorage.setItem('erp_logged', 'true'); 
+                    document.getElementById('auth-container').classList.add('hidden'); 
+                    renderAll(); 
+                } else alert("Credenciais incorretas.");
+            }
+        }
+
+        function logout() { sessionStorage.clear(); location.reload(); }
+
+        // --- NAVEGAÇÃO ---
+        function showSection(id) {
+            document.querySelectorAll('main > section').forEach(s => s.classList.add('hidden'));
+            document.getElementById('sec-' + id).classList.remove('hidden');
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('sidebar-active'));
+            document.getElementById('btn-' + id).classList.add('sidebar-active');
+            document.getElementById('sidebar').classList.remove('open');
+        }
+
+        // --- ORDENS DE SERVIÇO ---
+        function registrarOS() {
+            const os = {
+                id: Math.floor(10000 + Math.random() * 90000),
+                timestamp: new Date().getTime(),
+                data: new Date().toLocaleString(),
+                tecnico: document.getElementById('os-tecnico').value,
+                cliente: document.getElementById('os-cliente').value,
+                tel: document.getElementById('os-tel').value,
+                servico: document.getElementById('os-servico').value,
+                pagamento: document.getElementById('os-pagamento').value,
+                status: document.getElementById('os-status').value
+            };
+            if(!os.cliente || !os.servico) return alert("Cliente e Serviço são obrigatórios!");
+            db.os.push(os);
+            save();
+            document.querySelectorAll('#sec-os input').forEach(i => i.value = '');
+        }
+
+        function updateOSStatus(id, newStatus) {
+            if(newStatus === 'DELETE') {
+                if(confirm("Remover permanentemente?")) db.os = db.os.filter(o => o.id !== id);
+            } else {
+                const os = db.os.find(o => o.id === id);
+                if(os) os.status = newStatus;
+            }
+            save();
+        }
+
+        // --- EXPORTAÇÃO PDF ---
+        function exportRelatorioTemporal(dias) {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            const limite = new Date().getTime() - (dias * 24 * 60 * 60 * 1000);
+            const filtradas = db.os.filter(o => o.timestamp >= limite);
+
+            doc.setFontSize(18);
+            doc.text(`Relatório de O.S. - Últimos ${dias} Dias`, 14, 20);
+            doc.setFontSize(10);
+            doc.text(`FinControl ERP | Gerado em: ${new Date().toLocaleString()}`, 14, 28);
+
+            const corpo = filtradas.map(o => [o.data.split(',')[0], o.cliente, o.servico, o.status]);
+            doc.autoTable({
+                startY: 35,
+                head: [['Data', 'Cliente', 'Serviço', 'Status']],
+                body: corpo,
+                theme: 'grid',
+                headStyles: { fillColor: [30, 41, 59] }
+            });
+
+            doc.save(`Relatorio_${dias}_dias.pdf`);
+        }
+
+        function exportOSCompleta(id) {
+            const os = db.os.find(o => o.id === id);
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+
+            doc.setFillColor(30, 41, 59); doc.rect(0, 0, 210, 40, 'F');
+            doc.setTextColor(255); doc.setFontSize(22); doc.text("ORDEM DE SERVIÇO", 14, 25);
+            doc.setFontSize(10); doc.text(`PROTOCOLO #${os.id}`, 14, 33);
+
+            doc.setTextColor(0); doc.setFontSize(12);
+            doc.text("DADOS DO CLIENTE", 14, 55);
+            doc.setFontSize(10); doc.text(`Nome: ${os.cliente}`, 14, 62); doc.text(`Telefone: ${os.tel}`, 14, 68);
+
+            doc.setFontSize(12); doc.text("INFORMAÇÕES TÉCNICAS", 14, 85);
+            doc.setFontSize(10);
+            doc.text(`Técnico: ${os.tecnico}`, 14, 92);
+            doc.text(`Serviço: ${os.servico}`, 14, 98);
+            doc.text(`Pagamento: ${os.pagamento}`, 14, 104);
+            doc.text(`Status Atual: ${os.status}`, 14, 110);
+
+            doc.line(14, 140, 100, 140); doc.text("Assinatura do Técnico", 14, 145);
+            doc.line(110, 140, 196, 140); doc.text("Assinatura do Cliente", 110, 145);
+
+            doc.save(`OS_#${os.id}.pdf`);
+        }
+
+        // --- AUXILIARES ---
+        function adicionarProduto() {
+            const n = document.getElementById('prod-nome').value;
+            const p = parseFloat(document.getElementById('prod-preco').value);
+            if(n && p) { db.produtos.push({nome: n, preco: p}); save(); }
+        }
+
+        function registrarVenda() {
+            const idx = document.getElementById('venda-produto').value;
+            if(idx === "") return;
+            const p = db.produtos[idx];
+            db.vendas.push({ data: new Date().toLocaleDateString(), cliente: document.getElementById('venda-cliente').value, valor: p.preco });
+            db.financeiro.push({ desc: `Venda: ${p.nome}`, valor: p.preco });
+            save();
+        }
+
+        // --- RENDERIZADOR ---
+        function renderAll() {
+            const saldo = db.financeiro.reduce((a, b) => a + b.valor, 0);
+            document.getElementById('dash-saldo').innerText = `R$ ${saldo.toLocaleString('pt-br', {min: 2})}`;
+            document.getElementById('fin-total').innerText = `R$ ${saldo.toLocaleString('pt-br', {min: 2})}`;
+            document.getElementById('dash-os').innerText = db.os.filter(o => o.status !== 'Concluído').length;
+            document.getElementById('dash-vendas').innerText = db.vendas.length;
+            document.getElementById('dash-estoque').innerText = db.produtos.length;
+
+            const listOS = document.getElementById('lista-os');
+            listOS.innerHTML = db.os.slice().reverse().map(o => `
+                <tr class="hover:bg-slate-50 transition">
+                    <td class="p-4 text-xs font-medium text-slate-400">${o.data}</td>
+                    <td class="p-4"><div class="font-bold">${o.cliente}</div><div class="text-[10px] text-blue-500">${o.tel}</div></td>
+                    <td class="p-4 text-xs font-semibold">${o.tecnico}</td>
+                    <td class="p-4">
+                        <select onchange="updateOSStatus(${o.id}, this.value)" class="text-[10px] py-1 font-bold rounded-md border-none bg-slate-100">
+                            <option value="Aguardando" ${o.status === 'Aguardando'?'selected':''}>Aguardando</option>
+                            <option value="Pendente de Pagamento" ${o.status === 'Pendente de Pagamento'?'selected':''}>Pendente</option>
+                            <option value="Pago" ${o.status === 'Pago'?'selected':''}>Pago</option>
+                            <option value="Concluído" ${o.status === 'Concluído'?'selected':''}>Concluído</option>
+                            <option value="DELETE">❌ Excluir</option>
+                        </select>
+                    </td>
+                    <td class="p-4 text-center">
+                        <button onclick="exportOSCompleta(${o.id})" class="p-2 text-slate-400 hover:text-red-500 transition"><i class="fas fa-file-pdf text-lg"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+
+            document.getElementById('venda-produto').innerHTML = '<option value="">Item...</option>' + db.produtos.map((p, i) => `<option value="${i}">${p.nome}</option>`).join('');
+            document.getElementById('lista-produtos').innerHTML = db.produtos.map((p, i) => `<tr class="border-b"><td class="p-4 font-bold">${p.nome}</td><td class="p-4">R$ ${p.preco}</td><td class="p-4 text-right"><button onclick="db.produtos.splice(${i},1);save()"><i class="fas fa-trash text-red-400"></i></button></td></tr>`).join('');
+            document.getElementById('lista-financeiro').innerHTML = db.financeiro.slice().reverse().map(f => `<tr class="border-b"><td class="p-4">${f.desc}</td><td class="p-4 font-bold text-green-600 text-right">R$ ${f.valor.toFixed(2)}</td></tr>`).join('');
+            
+            updateChart();
+        }
+
+        let myChart;
+        function updateChart() {
+            const ctx = document.getElementById('mainChart').getContext('2d');
+            if(myChart) myChart.destroy();
+            myChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: db.os.slice(-7).map(o => o.cliente.split(' ')[0]),
+                    datasets: [{ label: 'Histórico O.S.', data: db.os.slice(-7).map((_,i)=>i+1), borderColor: '#3b82f6', tension: 0.4, fill: true, backgroundColor: 'rgba(59, 130, 246, 0.05)' }]
+                },
+                options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { grid: { display: false } }, x: { grid: { display: false } } } }
+            });
+        }
+
+        // --- BACKUP ---
+        function downloadBackup() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(db));
+            const dlAnchorElem = document.createElement('a');
+            dlAnchorElem.setAttribute("href", dataStr);
+            dlAnchorElem.setAttribute("download", "fincontrol_backup.json");
+            dlAnchorElem.click();
+        }
+        function importBackup() {
+            const file = document.getElementById('importFile').files[0];
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => { db = JSON.parse(e.target.result); save(); location.reload(); };
+            reader.readAsText(file);
+        }
+        function resetSystem() { if(confirm("Apagar todos os dados permanentemente?")) { localStorage.clear(); location.reload(); } }
+
+        if(sessionStorage.getItem('erp_logged')) {
+            document.getElementById('auth-container').classList.add('hidden');
+            renderAll();
+        }
+    </script>
+</body>
+</html>
